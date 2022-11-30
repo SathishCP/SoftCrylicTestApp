@@ -8,20 +8,133 @@ using System.Web;
 
 namespace SoftCrylicTestApp
 {
-    public class SoftUtils
+    public static class SoftUtils
     {
-        public void GetConnect()
+        private static readonly string str = System.Configuration.ConfigurationManager.ConnectionStrings["sqlConn"].ConnectionString;
+
+        public static int CreateEvent(Models.EventManager evt)
+        {
+            int value = default(int);
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(str))
+                {
+                    using (SqlCommand comm = new SqlCommand())
+                    {
+                        string query = "INSERT INTO [dbo].[EventManager] (EventId, EventTitle, EventDate, EventMode, EventVenue, EventSite, EventLink, SpeakerId) VALUES (@val1, @val2, @val3, @val4, @val5, @val6, @val7, @val8)";
+                        comm.Connection = conn;
+                        comm.CommandText = query;
+                        conn.Open();
+                        comm.Parameters.AddWithValue("@val1", evt.EventId);
+                        comm.Parameters.AddWithValue("@val2", evt.EventTitle);
+                        comm.Parameters.AddWithValue("@val3", DateTime.ParseExact(evt.EventDate, "dd-MM-yyyy", new System.Globalization.DateTimeFormatInfo()));
+                        comm.Parameters.AddWithValue("@val4", evt.EventMode);
+                        comm.Parameters.AddWithValue("@val5", evt.EventVenue);
+                        comm.Parameters.AddWithValue("@val6", evt.EventSite);
+                        comm.Parameters.AddWithValue("@val7", evt.EventLink);
+                        comm.Parameters.AddWithValue("@val8", evt.SpeakerId);
+                        value = comm.ExecuteNonQuery();
+                    }
+                }
+                return value;
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public static Models.Events GetEvents(string Id)
         {
             try
             {
-                string str = System.Configuration.ConfigurationManager.ConnectionStrings["sqlConn"].ConnectionString;
+                Models.Events evt = new Models.Events();
                 using (SqlConnection conn = new SqlConnection(str))
                 {
                     if (conn.State == ConnectionState.Closed)
+                    {
                         conn.Open();
+                        string query = "SELECT * FROM  [dbo].[EventManager] WHERE SpeakerId = @SpeakerId";
+                        using (SqlCommand cmd = new SqlCommand(query, conn))
+                        {
+                            cmd.Parameters.AddWithValue("@SpeakerId", Id);
+                            using (SqlDataReader rdr = cmd.ExecuteReader())
+                            {                                
+                                while (rdr.Read())
+                                {
+                                    evt.EventManager.Add(new Models.EventManager()
+                                    {
+                                        EventId = (int)rdr["EventId"],
+                                        EventTitle =(string)rdr["EventTitle"],
+                                        EventDate= Convert.ToDateTime(rdr["EventDate"]).ToString("yyyy-MM-dd"),
+                                        EventMode = (string)rdr["EventMode"],
+                                        EventVenue = (string)rdr["EventVenue"],
+                                        EventSite = (string)rdr["EventSite"],
+                                        EventLink = (string)rdr["EventLink"],
+                                        SpeakerId = (int)rdr["SpeakerId"]
+                                    });
+                                }
+                                rdr.Close();
+                            }
+                        }
+                    }
                 }
+                return evt;
             }
             catch(Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public static int UpdateEvent(Models.EventManager evt)
+        {
+            try
+            {
+                int value = default(int);
+                using (SqlConnection conn = new SqlConnection(str))
+                {
+                    using (SqlCommand comm = new SqlCommand())
+                    {
+                        string query = "UPDATE [dbo].[EventManager] SET EventDate=@val1, EventMode=@val2, EventVenue=@val3, EventSite=@val4, EventLink=@val5, SpeakerId=@val6 WHERE EventId=@EventId";
+                        comm.Connection = conn;
+                        comm.CommandText = query;
+                        conn.Open();
+                        comm.Parameters.AddWithValue("@val1", DateTime.ParseExact(evt.EventDate, "dd-MM-yyyy", System.Globalization.CultureInfo.InvariantCulture));
+                        comm.Parameters.AddWithValue("@val2", evt.EventMode);
+                        comm.Parameters.AddWithValue("@val3", evt.EventVenue);
+                        comm.Parameters.AddWithValue("@val4", evt.EventSite);
+                        comm.Parameters.AddWithValue("@val5", evt.EventLink);
+                        comm.Parameters.AddWithValue("@val6", evt.SpeakerId);
+                        comm.Parameters.AddWithValue("@EventId", evt.EventId);
+                        value = comm.ExecuteNonQuery();
+                    }
+                }
+                return value;
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public static int DeleteEvent(string evt)
+        {
+            try
+            {
+                int value = default(int);
+                using (SqlConnection conn = new SqlConnection(str))
+                {
+                    using (SqlCommand comm = new SqlCommand("DELETE FROM [dbo].[EventManager] WHERE EventId=@EventId", conn))
+                    {
+                        comm.Parameters.AddWithValue("@EventId", evt);
+                        conn.Open();
+                        value = comm.ExecuteNonQuery();
+                    }
+                }
+                return value;
+            }
+            catch (Exception ex)
             {
                 throw ex;
             }
@@ -30,31 +143,25 @@ namespace SoftCrylicTestApp
         public static DataTable ConvertListToDataTable<T>(List<T> items)
         {
             DataTable dataTable = new DataTable(typeof(T).Name);
-
-            //Get all the properties
             PropertyInfo[] Props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
             foreach (PropertyInfo prop in Props)
-            {
-                //Defining type of data column gives proper data table 
-                var type = (prop.PropertyType.IsGenericType && prop.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>) ? Nullable.GetUnderlyingType(prop.PropertyType) : prop.PropertyType);
-                //Setting column names as Property names
+            { 
+                Type type = (prop.PropertyType.IsGenericType && prop.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>) ? Nullable.GetUnderlyingType(prop.PropertyType) : prop.PropertyType);
                 dataTable.Columns.Add(prop.Name, type);
             }
             foreach (T item in items)
             {
-                var values = new object[Props.Length];
+                object[] values = new object[Props.Length];
                 for (int i = 0; i < Props.Length; i++)
                 {
-                    //inserting property values to datatable rows
                     values[i] = Props[i].GetValue(item, null);
                 }
                 dataTable.Rows.Add(values);
             }
-            //put a breakpoint here and check datatable
             return dataTable;
         }
 
-        public byte[] ExportDataTableIntoMultipleExcelSheets(DataTable dt, string fileName)
+        public static byte[] ExportDataTableIntoMultipleExcelSheets(DataTable dt, string fileName)
         {
             byte[] bytes = new byte[] { };
             try
