@@ -70,5 +70,39 @@ namespace SoftCrylicTestApp.Controllers
                 return await System.Threading.Tasks.Task.FromResult(Ok(string.Format("{0} {1}", ex.Message, ex.InnerException.Message)));
             }
         }
+
+        [Route("Download"), HttpGet(), ActionName("Download")]
+        public async System.Threading.Tasks.Task<IHttpActionResult> Download([FromUri]string Id)
+        {
+            try
+            {
+                Models.Events events = SoftUtils.GetEvents(string.Empty);
+
+                using (System.Data.DataTable dt = SoftUtils.ConvertListToDataTable<Models.EventManager>(events.EventManager))
+                {
+                    byte[] byteArray = SoftUtils.ExportDataTableIntoMultipleExcelSheets(dt);
+
+                    System.IO.MemoryStream stream = new System.IO.MemoryStream();
+
+                    HttpResponseMessage result = new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new ByteArrayContent(stream.GetBuffer())
+                    };
+                    result.Content.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("attachment")
+                    {
+                        FileName = "SoftCrylicEvents.xls"
+                    };
+                    result.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+
+                    var response = ResponseMessage(result);
+
+                    return await System.Threading.Tasks.Task.FromResult(Ok(response));
+                }
+            }
+            catch (Exception ex)
+            {
+                return await System.Threading.Tasks.Task.FromResult(Ok(string.Format("{0} {1}", ex.Message, ex.InnerException.Message)));
+            }
+        }
     }
 }
